@@ -89,7 +89,8 @@ RUN echo \
     xsi:schemaLocation='http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd'> \
         <localRepository>\${user.home}/work/.m2/repository</localRepository> \
     </settings>" \
-    > $HOME/.sdkman/candidates/maven/current/conf/settings.xml && \
+    > $HOME/.sdkman/candidates/maven/current/conf/settings.xml
+
 ENV NEEDED_WORK_DIRS "$NEEDED_WORK_DIRS .m2"
 
 RUN echo '#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!' >> $HOME/.zshenv && \
@@ -101,6 +102,8 @@ SHELL ["/bin/zsh","-l","-c"]
 # Install PlantUML
 RUN curl -L https://sourceforge.net/projects/plantuml/files/plantuml.${PLANTUML_VERSION}.jar/download -o /usr/local/bin/plantuml.jar && \
     echo "$PLANTUML_SHA1 */usr/local/bin/plantuml.jar" | sha1sum -c - 
+
+COPY dependencies/* "$HOME/lib/"
 
 # Adds Java and Maven to the user path
 ENV PATH=/home/jovyan/.sdkman/candidates/maven/current/bin:/home/jovyan/.sdkman/candidates/java/current/bin:$PATH

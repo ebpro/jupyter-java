@@ -1,0 +1,66 @@
+//%jars /usr/local/bin/plantuml.jar
+
+import io.github.spencerpark.ijava.IJava;
+import net.sourceforge.plantuml.*;
+import net.sourceforge.plantuml.core.DiagramDescription;
+import java.nio.charset.Charset;
+import javax.imageio.ImageIO;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import io.github.spencerpark.ijava.IJava;
+import io.github.spencerpark.ijava.JavaKernel;
+import io.github.spencerpark.jupyter.kernel.magic.registry.UndefinedMagicException;
+
+
+/**
+Render plantUML from cell
+*/
+IJava.getKernelInstance().getMagics().registerCellMagic("plantUML", (args, body) -> {
+        //sets the results mimetype
+        if (args.size()>1) throw new Exception("Max one argument : SVG or PNG");
+        String fileFormat;
+        if (args.size()==0) fileFormat="SVG"; 
+          else fileFormat=args.get(0);    
+        
+        SourceStringReader reader = new SourceStringReader(body);
+        final ByteArrayOutputStream os = new ByteArrayOutputStream();
+
+        DiagramDescription desc = reader.outputImage(os, new FileFormatOption(FileFormat.valueOf(fileFormat)));
+        os.close();
+        Object out;
+        if (fileFormat.equals("SVG"))
+            out = new String(os.toByteArray(), Charset.forName("UTF-8"));
+        else 
+            out= ImageIO.read(new ByteArrayInputStream(os.toByteArray()));
+        
+        display(out,fileFormat.equals("SVG")?"image/svg+xml":"image/png");
+        return out;
+        });
+
+/**
+Render plantUML from file
+*/
+IJava.getKernelInstance().getMagics().registerCellMagic("plantUMLFile", (args, body) -> {    
+    //sets the results mimetype
+    if (args.size()>1) throw new Exception("Max one argument : SVG or PNG");
+    String fileFormat;
+    if (args.size()==0) fileFormat="SVG"; 
+    else fileFormat=args.get(0);
+    
+    List<String> l = new ArrayList<>();
+
+    List<Object> outList = new ArrayList<>();
+    body.lines().forEach(filename-> {
+     Object out;        
+     try {        
+        out=cellMagic("plantUML",args,Files.readString(Paths.get(filename)));
+        //display(out,fileFormat.equals("SVG")?"image/svg+xml":"image/png");
+        outList.add(out);
+     } catch (java.io.IOException e) {}
+    });    
+    
+        return outList;
+                
+        });
+    
