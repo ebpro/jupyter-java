@@ -3,8 +3,8 @@ FROM $BASE_CONTAINER
 
 LABEL maintainer="Emmanuel Bruno <emmanuel.bruno@univ-tln.fr>"
 
-ENV PLANTUML_VERSION 1.2022.1
-ENV PLANTUML_SHA1 ac9847dac6687f5079793952cf981f8d75ff4515
+ENV PLANTUML_VERSION 1.2022.12
+ENV PLANTUML_SHA1 da1de7f1b3de4c70b2ff501579802085dbc9a05b
 USER root
 
 # Install minimal dependencies 
@@ -100,7 +100,7 @@ RUN echo '#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!' >> $HOME/.
 SHELL ["/bin/zsh","-l","-c"]
 
 # Install PlantUML
-RUN curl -L https://sourceforge.net/projects/plantuml/files/plantuml.${PLANTUML_VERSION}.jar/download -o /usr/local/bin/plantuml.jar && \
+RUN curl -L https://repo1.maven.org/maven2/net/sourceforge/plantuml/plantuml/${PLANTUML_VERSION}/plantuml-${PLANTUML_VERSION}.jar -o /usr/local/bin/plantuml.jar && \
     echo "$PLANTUML_SHA1 */usr/local/bin/plantuml.jar" | sha1sum -c - 
 
 COPY dependencies/* "$HOME/lib/"
