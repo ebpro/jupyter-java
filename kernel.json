@@ -1,0 +1,12 @@
+{
+    "argv": [
+	    	"java",
+		"-ea",
+		"-jar",
+		"/opt/conda/share/jupyter/kernels/java/ijava-1.3.0.jar",
+		"{connection_file}"],
+    "display_name": "Java",
+    "env": {"IJAVA_COMPILER_OPTS":"--enable-preview --release 17"},
+    "interrupt_mode": "message",
+    "language": "java"
+}

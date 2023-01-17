@@ -8,7 +8,9 @@ ENV PLANTUML_SHA1 da1de7f1b3de4c70b2ff501579802085dbc9a05b
 USER root
 
 # Install minimal dependencies 
-RUN	apt-get update && apt-get install --yes --no-install-recommends\
+RUN --mount=type=cache,target=/var/cache/apt \
+	rm -f /etc/apt/apt.conf.d/docker-clean &&\
+	apt-get update && apt-get install -qq --yes --no-install-recommends\
 		coreutils \
 		curl \
 		dnsutils \
@@ -21,14 +23,16 @@ RUN	apt-get update && apt-get install --yes --no-install-recommends\
 		procps \
 		tree \
 		ttf-bitstream-vera \
-		zsh && \
-  apt-get clean && rm -rf /var/lib/apt/lists/* && rm -rf /var/cache/apt
+		zsh \
+        	make latexmk fonts-freefont-otf texlive-latex-extra texlive-fonts-extra texlive-xetex latexmk \
+	&& rm -rf /var/lib/apt/lists/*
 
 ## ZSH
 ADD zsh/initzsh.sh /tmp/initzsh.sh
 ADD zsh/p10k.zsh $HOME/.p10k.zsh 
 
-RUN echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
+RUN --mount=type=cache,target=/var/cache/buildkit/pip \
+	echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
         curl -sL https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip -o /tmp/ijava-kernel.zip && \
         unzip /tmp/ijava-kernel.zip -d /tmp/ijava-kernel && \
         cd /tmp/ijava-kernel && \
@@ -57,30 +61,33 @@ RUN echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
     fix-permissions /home/$NB_USER
 
 ## Enable Java Early Access
-#COPY kernel.json /opt/conda/share/jupyter/kernels/java/kernel.json
+COPY kernel.json /opt/conda/share/jupyter/kernels/java/kernel.json
 # Adds IJava Jupyter Kernel Personnal Magics
 ADD magics  /magics
 
-ENV IJAVA_COMPILER_OPTS="-deprecation -Xlint -XprintProcessorInfo -XprintRounds --enable-preview --release 17"
+# ENV IJAVA_COMPILER_OPTS="-deprecation -Xlint -XprintProcessorInfo -XprintRounds --enable-preview --release 17"
 ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
 ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
 
-RUN echo -e "\e[93m**** Installs SDKMan, Java JDKs and Maven3 ****\e[38;5;241m"
 # Tool to easily install java dev tools with sdkman  
 # Install latest java jdk LTS
 # Install the latest mvn 3
-RUN curl -s "https://get.sdkman.io" | bash && \
+RUN --mount=type=cache,target=/opt/sdkmanArchives/ \
+    echo -e "\e[93m**** Installs SDKMan, Java JDKs and Maven3 ****\e[38;5;241m" && \
+    curl -s "https://get.sdkman.io" | bash && \
+    mkdir -p /home/jovyan/.sdkman/archives/ && \
+    ln -s /opt/sdkmanArchives/ /home/jovyan/.sdkman/archives/ && \
     echo "sdkman_auto_answer=true" > $HOME/.sdkman/etc/config && \
 	source "$HOME/.sdkman/bin/sdkman-init.sh" && \
 	sdk install java && \
 	sdk install maven && \
-	sdk flush && \
+	# sdk flush && \
 	groupadd sdk && \
 	chgrp -R sdk $SDKMAN_DIR &&\
 	chmod 770 -R $SDKMAN_DIR && \	
 	adduser $NB_USER sdk && \
-	sdk flush && \
-	sdk flush broadcast && \
+	# sdk flush && \
+	# sdk flush broadcast && \
 	fix-permissions /home/$NB_USER/.sdkman
 
 RUN echo \
