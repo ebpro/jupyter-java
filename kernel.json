@@ -1,6 +1,6 @@
 {
     "argv": [
-	    	"java",
+	  "java",
 		"-ea",
 		"-jar",
 		"/opt/conda/share/jupyter/kernels/java/ijava-1.3.0.jar",
