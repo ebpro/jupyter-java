@@ -125,7 +125,7 @@ IJava.getKernelInstance().getMagics().registerCellMagic("compile",(args,body)->{
         List<URI> classpath = new ClassGraph().getClasspathURIs();
         List<String> optionList=new ArrayList<String>();
         optionList.addAll(Arrays.asList("-cp",classpath.stream().map(URI::toString).collect(Collectors.joining(":"))));
-        optionList.addAll(Arrays.asList("--enable-preview","--release","19"));
+        optionList.addAll(Arrays.asList("--enable-preview","--release","17"));
         compiler.getTask(null,fileManager,null,optionList,null,compilationUnits1).call();
         //display("Compilation of "+file);
         
