@@ -5,7 +5,7 @@ LABEL maintainer="Emmanuel Bruno <emmanuel.bruno@univ-tln.fr>"
 USER root
 
 # Install minimal dependencies 
-RUN --mount=type=cache,target=/var/cache/apt \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	rm -f /etc/apt/apt.conf.d/docker-clean &&\
 	apt-get update && apt-get install -qq --yes --no-install-recommends\
 		coreutils \
@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
 		ttf-bitstream-vera \
 	&& rm -rf /var/lib/apt/lists/*
 
-RUN --mount=type=cache,target=/var/cache/buildkit/pip \
+RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
 	echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
         curl -sL https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip -o /tmp/ijava-kernel.zip && \
         unzip /tmp/ijava-kernel.zip -d /tmp/ijava-kernel && \
@@ -41,7 +41,7 @@ ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
 # Tool to easily install java dev tools with sdkman  
 # Install latest java jdk LTS
 # Install the latest mvn 3
-RUN --mount=type=cache,target=/opt/sdkmanArchives/ \
+RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
     echo -e "\e[93m**** Installs SDKMan, Java JDKs and Maven3 ****\e[38;5;241m" && \
     curl -s "https://get.sdkman.io" | bash && \
     mkdir -p /home/jovyan/.sdkman/archives/ && \
