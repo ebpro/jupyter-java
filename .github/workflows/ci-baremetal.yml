@@ -15,6 +15,9 @@ concurrency:
 
 jobs:
   docker:
+    strategy:
+      matrix:
+        ENV: ["", "community", "ultimate"]
     runs-on: [self-hosted, multiarch]
     steps:
       - name: Checkout
@@ -27,6 +30,9 @@ jobs:
         with:
           images: |
             "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REPOSITORY_NAME }}"
+          flavor: |
+            latest=auto
+            prefix=
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -71,6 +77,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
+          build-args: | 
+            ENV=${{ matrix.version }}
           context: .
           platforms: |
             linux/amd64

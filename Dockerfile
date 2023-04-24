@@ -4,19 +4,14 @@ LABEL maintainer="Emmanuel Bruno <emmanuel.bruno@univ-tln.fr>"
 
 USER root
 
+
 # Install minimal dependencies 
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-	rm -f /etc/apt/apt.conf.d/docker-clean &&\
-	apt-get update && apt-get install -qq --yes --no-install-recommends\
-		coreutils \
-		dnsutils \
-		gnupg \
-		inkscape \
-		iputils-ping \
-		net-tools \
-		tree \
-		ttf-bitstream-vera \
-	&& rm -rf /var/lib/apt/lists/*
+ 	apt-get update && \
+	apt-get install -qq --yes --no-install-recommends \
+		$(cat /tmp/apt_packages) && \
+	rm -rf /var/lib/apt/lists/*	
 
 RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
 	echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
@@ -81,7 +76,36 @@ RUN echo -e "\e[93m**** Install lombok and java dependencies ***\e[38;5;241m" &&
 
 COPY dependencies/* "$HOME/lib/"
 
-# Adds Java and Maven to the user path
-ENV PATH=/home/jovyan/.sdkman/candidates/maven/current/bin:/home/jovyan/.sdkman/candidates/java/current/bin:$PATH
+# Adds Java and Maven to the user path and intellij idea
+ENV PATH=/home/jovyan/.sdkman/candidates/maven/current/bin:/home/jovyan/.sdkman/candidates/java/current/bin:/opt/idea/bin/:$PATH
+
+ARG ENV
+
+RUN if [[ "$ENV" = "ultimate" || "$ENV" = "community" ]] ; then \
+	 # Installs the latest intellij idea ultimate
+	 if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
+		target=linux; \
+  	 elif [ "$TARGETPLATFORM" = "linux/arm64/v8" ] || [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
+		target=linuxARM64; \
+	 else \
+		target=linux; \
+	 fi && \
+	# Ultimate Installs the latest jdk and intellij ultimate
+	 if [[ "$ENV" = "ultimate" ]] ; then \
+	 	sdk install java $(sdk list java|grep tem|head -n 1|cut -d '|' -f 6) && \
+	 	product=IU; \
+	 else \
+	 	product=IC; \
+	 fi && \
+	 idea_releases_url="https://data.services.jetbrains.com/products/releases?code=${product}&latest=true&type=release" && \
+        download_url=$(curl --silent $idea_releases_url | jq --raw-output ".I${product}[0].downloads.${target}.link") && \    
+		filename=${download_url##*/} && \
+        echo -e "\e[93m**** Download and install jetbrains ${filename%.tar.gz} ***\e[38;5;241m" && \
+		mkdir /opt/idea/ && \
+#		curl --silent -L "https://download.jetbrains.com/product?code=IU&latest&distribution=linux" | \
+		curl --silent -L "${download_url}" | \
+			tar xz -C /opt/idea --strip 1; \
+	fi
+ENV PATH=:$PATH
 
 USER $NB_UID

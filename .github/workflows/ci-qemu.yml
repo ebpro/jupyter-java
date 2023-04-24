@@ -15,6 +15,9 @@ concurrency:
 
 jobs:
   docker:
+    strategy:
+      matrix:
+        ENV: ["", "community", "ultimate"]
     runs-on: [self-hosted, qemu]
     steps:
       - name: Checkout
@@ -30,6 +33,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4     
         with:
+          flavor: |
+            latest=auto
+            prefix=${{ matrix.version }}
           images: |
             "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REPOSITORY_NAME }}"
           tags: |
