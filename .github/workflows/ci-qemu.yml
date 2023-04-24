@@ -1,7 +1,9 @@
 name: Multi Arch QEMU CI
 
 on:
-  workflow_dispatch:  
+  workflow_dispatch:
+  schedule:
+    - cron: '1 10 * * *'    
   push:
     branches:
       - 'releases/v*'
@@ -39,6 +41,7 @@ jobs:
           images: |
             "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REPOSITORY_NAME }}"
           tags: |
+            type=schedule,pattern==nightly
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
@@ -85,6 +88,8 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
+          build-args: | 
+            ENV=${{ matrix.version }}
           platforms: linux/amd64,linux/arm64/v8
 #          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
