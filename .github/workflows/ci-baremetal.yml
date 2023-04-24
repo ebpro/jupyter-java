@@ -32,7 +32,7 @@ jobs:
             "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REPOSITORY_NAME }}"
           flavor: |
             latest=auto
-            prefix=
+            prefix=${{ matrix.version }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr

@@ -23,6 +23,8 @@ jobs:
     strategy:
       matrix:
         ENV: ["", "community", "ultimate"]
+    env:
+      ENV: ${{ matrix.ENV }}
     runs-on: [self-hosted, qemu]
     steps:
       - name: Checkout
@@ -31,8 +33,8 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
-      - name: Set the environment variable
-        run: echo REPOSITORY_NAME=${GITHUB_REPOSITORY#*\/} >> $GITHUB_ENV
+      - run: echo REPOSITORY_NAME=${GITHUB_REPOSITORY#*\/} >> $GITHUB_ENV
+      - run: echo TAG_SUFFIX=${ENV:+-$ENV}  >> $GITHUB_ENV
 
       - name: Docker meta
         id: meta
@@ -40,11 +42,11 @@ jobs:
         with:
           flavor: |
             latest=auto
-            prefix=${{ matrix.version }}
+            suffix=${{ env.TAG_SUFFIX }}
           images: |
             "${{ secrets.DOCKERHUB_USERNAME }}/${{ env.REPOSITORY_NAME }}"
           tags: |
-            type=schedule,pattern==nightly
+            type=schedule,pattern=nightly
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
@@ -94,7 +96,6 @@ jobs:
           build-args: | 
             ENV=${{ matrix.ENV }}
           platforms: linux/amd64,linux/arm64/v8
-#          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
