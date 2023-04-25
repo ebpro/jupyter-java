@@ -33,6 +33,8 @@ ADD magics  /magics
 ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
 ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
 
+ARG VERSION=stable
+
 # Tool to easily install java dev tools with sdkman  
 # Install latest java jdk LTS
 # Install the latest mvn 3
@@ -43,7 +45,11 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
     ln -s /opt/sdkmanArchives/ /home/jovyan/.sdkman/archives/ && \
     echo "sdkman_auto_answer=true" > $HOME/.sdkman/etc/config && \
 	source "$HOME/.sdkman/bin/sdkman-init.sh" && \
-	sdk install java && \
+	if [[ "$VERSION" = "latest" ]] ; then \
+	 	sdk install java $(sdk list java|grep tem|head -n 1|cut -d '|' -f 6) ;\
+	else \
+		sdk install java ;\
+	fi && \
 	sdk install maven && \
 	# sdk flush && \
 	groupadd sdk && \
@@ -92,7 +98,6 @@ RUN if [[ "$ENV" = "ultimate" || "$ENV" = "community" ]] ; then \
 	 fi && \
 	# Ultimate Installs the latest jdk and intellij ultimate
 	 if [[ "$ENV" = "ultimate" ]] ; then \
-	 	sdk install java $(sdk list java|grep tem|head -n 1|cut -d '|' -f 6) && \
 	 	product=IU; \
 	 else \
 	 	product=IC; \
@@ -102,7 +107,6 @@ RUN if [[ "$ENV" = "ultimate" || "$ENV" = "community" ]] ; then \
 		filename=${download_url##*/} && \
         echo -e "\e[93m**** Download and install jetbrains ${filename%.tar.gz} ***\e[38;5;241m" && \
 		mkdir /opt/idea/ && \
-#		curl --silent -L "https://download.jetbrains.com/product?code=IU&latest&distribution=linux" | \
 		curl --silent -L "${download_url}" | \
 			tar xz -C /opt/idea --strip 1; \
 	fi

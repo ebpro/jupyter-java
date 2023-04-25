@@ -23,8 +23,10 @@ jobs:
     strategy:
       matrix:
         ENV: ["", "community", "ultimate"]
+        version: [stable, latest]
     env:
       ENV: ${{ matrix.ENV }}
+      VERSION: ${{ matrix.VERSION }}
     runs-on: [self-hosted, qemu]
     steps:
       - name: Checkout
@@ -34,7 +36,7 @@ jobs:
         uses: docker/setup-qemu-action@v2
 
       - run: echo REPOSITORY_NAME=${GITHUB_REPOSITORY#*\/} >> $GITHUB_ENV
-      - run: echo TAG_SUFFIX=${ENV:+-$ENV}  >> $GITHUB_ENV
+      - run: echo TAG_SUFFIX=${VERSION:+-$VERSION}${ENV:+-$ENV}  >> $GITHUB_ENV
 
       - name: Docker meta
         id: meta
