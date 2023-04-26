@@ -3,7 +3,7 @@ name: Multi Arch QEMU CI
 on:
   workflow_dispatch:
   schedule:
-    - cron: '1 10 * * *'    
+    - cron: '0 02 * * *'    
   push:
     branches:
       - 'releases/v*'
@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         ENV: ["", "community", "ultimate"]
-        version: [stable, latest]
+        version: ["", latest]
     env:
       ENV: ${{ matrix.ENV }}
       VERSION: ${{ matrix.VERSION }}

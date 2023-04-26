@@ -33,7 +33,7 @@ ADD magics  /magics
 ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
 ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
 
-ARG VERSION=stable
+ARG VERSION
 
 # Tool to easily install java dev tools with sdkman  
 # Install latest java jdk LTS
