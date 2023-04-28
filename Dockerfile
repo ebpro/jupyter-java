@@ -4,7 +4,6 @@ LABEL maintainer="Emmanuel Bruno <emmanuel.bruno@univ-tln.fr>"
 
 USER root
 
-
 # Install minimal dependencies 
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
