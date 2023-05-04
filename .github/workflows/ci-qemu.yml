@@ -38,8 +38,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-#      - name: Set up QEMU
-#        uses: docker/setup-qemu-action@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
 
       - name: Set GITHUB_ENV values
         id: step_one
@@ -108,8 +108,8 @@ jobs:
             ENV = ${{ matrix.ENV }}
             VERSION = ${{ matrix.VERSION }}
             LICENCE = ${{ matrix.LICENCE }}                        
-          #platforms: linux/amd64,linux/arm64/v8
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64/v8
+          #platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
