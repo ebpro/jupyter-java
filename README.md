@@ -4,26 +4,54 @@
 
 A base image for Jupyter Lab for Java :
 
-* JDK 17 (Temurin) and Maven 3.8 from [sdkman](https://sdkman.io/)
-* Code Server Web IDE
-* PlantUML
-* ZSH
-* TexLive
-* Jupyter Book
-* Docker client
+* Minimal
+  * JDK (Temurin) and Maven 3 from [sdkman](https://sdkman.io/)
+  * Jupyter Book
+  * PlantUML
+  * ZSH
+* Default
+  * Code Server Web IDE
+  * Intellij Idea
+  * TexLive full
+  * Docker client
 
 ## Quickstart
 
-The notebooks and the working directories are separated in two directories (`/home/jovyan/notebooks/{notebooks,work}`) usually monted as volumes.
+Working directories is `/home/jovyan/work/` (usually monted as a volume).
+Notebooks are in `/home/jovyan/work/notebooks`).
+
+### Use Jupyter
 
 ```bash
-docker run --rm --name jupyter-java-${PWD##*/} \
-  --volume data-notebooks-${PWD##*/}:/home/jovyan/notebooks \
-  --volume data-work-${PWD##*/}:/home/jovyan/work \
-  --publish 8888:8888 \
-  --env NB_UID=$UID \
-  brunoe/jupyter-java-base:develop start-notebook.sh \
-      --notebook-dir=/home/jovyan/notebooks
+docker run --rm -it \
+    --name jupyter-java \
+    --volume JUPYTER_WORKDIR:/home/jovyan/work \
+    --publish 8888:8888 \
+    --env NB_UID=$UID \
+    brunoe/jupyter-java:develop $@
+```
+
+### Use Intellij Idea
+
+MacOs  
+
+```bash
+brew install --cask xquartz
+open -a XQuartz
+xhost + 127.0.0.1
+````
+
+All
+
+```bash
+docker run --rm -it \
+    --name jupyter-java \
+    --volume JUPYTER_WORKDIR:/home/jovyan/work \
+    --publish 8888:8888 \
+    --env NB_UID=$UID \
+    --env DISPLAY=host.docker.internal:0 \
+    --volume /tmp/.X11-unix:/tmp/.X11-unix \
+    brunoe/jupyter-java:develop idea.sh
 ```
 
 ## Host files and UIDs
