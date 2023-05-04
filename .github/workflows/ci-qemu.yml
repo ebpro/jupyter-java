@@ -26,7 +26,9 @@ jobs:
         version: ["", "stable"]
         include: 
           - ENV: ""
-            licence: ["","community"]
+            licence: ""
+          - ENV: ""
+            licence: "community"
     env:
       ENV: ${{ matrix.ENV }}
       VERSION: ${{ matrix.VERSION }}
@@ -62,7 +64,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
           labels: |
-            org.opencontainers.image.description=A test for Docker CI with Github Actions.            
+            org.opencontainers.image.description=${{ github.event.repository.description }}            
 
       - name: Login to DockerHub
         if: github.event_name != 'pull_request'
