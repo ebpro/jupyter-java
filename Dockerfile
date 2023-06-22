@@ -28,7 +28,7 @@ ADD magics  /magics
 ARG VERSION
 
 # Install java dev tools with sdkman  
-#     latest java jdk LTS (version=stable) or the latest jdk (version="")
+#     latest java jdk LTS (ENV=stable) or the latest jdk (ENV="")
 #     stable mvn 3
 RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
     echo -e "\e[93m**** Installs SDKMan, JDK and Maven ****\e[38;5;241m" && \
@@ -37,7 +37,7 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
     ln -s /opt/sdkmanArchives/ /home/jovyan/.sdkman/archives/ && \
     echo "sdkman_auto_answer=true" > $HOME/.sdkman/etc/config && \
 	source "$HOME/.sdkman/bin/sdkman-init.sh" && \
-	if [[ "$VERSION" = "stable" ]] ; then \
+	if [[ "$ENV" = "stable" ]] ; then \
 		sdk install java ;\
 	else \
 	 	sdk install java $(sdk list java|grep tem|head -n 1|cut -d '|' -f 6) ;\
@@ -82,7 +82,7 @@ COPY dependencies/* "$HOME/lib/"
 ARG ENV
 
 # If not minimal install Intellij Idea
-RUN if [[ "$ENV" = "" ]] ; then \
+RUN if [[ "$ENV" != "minimal" ]] ; then \
 	 # Installs the latest intellij idea ultimate
 	 if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
 		target=linux; \
@@ -99,6 +99,7 @@ RUN if [[ "$ENV" = "" ]] ; then \
 	 fi && \
 	 idea_releases_url="https://data.services.jetbrains.com/products/releases?code=${product}&latest=true&type=release" && \
         download_url=$(curl --silent $idea_releases_url | jq --raw-output ".I${product}[0].downloads.${target}.link") && \    
+	 	echo "Idea URL: $download_url" && \
 		filename=${download_url##*/} && \
         echo -e "\e[93m**** Download and install jetbrains ${filename%.tar.gz} ***\e[38;5;241m" && \
 		mkdir /opt/idea/ && \
@@ -109,7 +110,7 @@ ENV PATH=:$PATH
 
 # Codeserver extensions to install
 COPY Artefacts/codeserver_extensions /tmp/
-RUN if [[ "$ENV" = "" ]] ; then \
+RUN if [[ "$ENV" != "minimal" ]] ; then \
 		echo -e "\e[93m**** Installs Code Server Extensions ****\e[38;5;241m" && \
 				CODESERVERDATA_DIR=/tmp/codeserver && \
 				mkdir -p $CODESERVERDATA_DIR && \
@@ -130,11 +131,14 @@ RUN JAVA_MAJOR_VERSION=$(java --version|head -n 1|cut -d ' ' -f 2|cut -d '.' -f 
 	 	/opt/conda/share/jupyter/kernels/java/kernel.json
 
 # Update installed software versions. 
-COPY README.md /
+ARG CACHEBUST=4
 COPY versions/ /versions/
-RUN for version in $(ls -d /versions/*) ; do \
-      echo >> /README.md ; \
-      $version 2>/dev/null >> /README.md ; \
+COPY --chown=$NB_UID:$NB_GID README.md ${HOME}/
+RUN touch ${HOME}/README.md && \
+    echo "# jupyter-java softwares" > ${HOME}/README.md && \
+    echo ${CACHEBUST} && \
+    for versionscript in $(ls -d /versions/*) ; do \
+      eval "$versionscript" 2>/dev/null >> ${HOME}/README.md ; \
     done
 	
 USER $NB_UID
