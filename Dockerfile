@@ -12,9 +12,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 	rm -rf /var/lib/apt/lists/*	
 
 # Install a Java Kernel for Jupyter
+ARG INVALIDATE_CACHE=3
 RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
 	echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
-        curl -sL https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip -o /tmp/ijava-kernel.zip && \
+        #curl -sL https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip -o /tmp/ijava-kernel.zip && \
+        curl -sL https://bruno.univ-tln.fr/ijava-latest.zip -o /tmp/ijava-kernel.zip && \
         unzip /tmp/ijava-kernel.zip -d /tmp/ijava-kernel && \
         cd /tmp/ijava-kernel && \
         python3 install.py --sys-prefix && \
@@ -82,34 +84,41 @@ COPY dependencies/* "$HOME/lib/"
 ARG ENV
 
 # If not minimal install Intellij Idea
-RUN if [[ "$ENV" != "minimal" ]] ; then \
-	 # Installs the latest intellij idea ultimate
-	 if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
-		target=linux; \
-  	 elif [ "$TARGETPLATFORM" = "linux/arm64/v8" ] || [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
-		target=linuxARM64; \
-	 else \
-		target=linux; \
-	 fi && \
-	# By default install ultimate version
-	 if [[ "$LICENCE" = "community" ]] ; then \
-	 	product=IC; \
-	 else \
-	 	product=IU; \
-	 fi && \
-	 idea_releases_url="https://data.services.jetbrains.com/products/releases?code=${product}&latest=true&type=release" && \
-        download_url=$(curl --silent $idea_releases_url | jq --raw-output ".I${product}[0].downloads.${target}.link") && \    
-	 	echo "Idea URL: $download_url" && \
-		filename=${download_url##*/} && \
-        echo -e "\e[93m**** Download and install jetbrains ${filename%.tar.gz} ***\e[38;5;241m" && \
-		mkdir /opt/idea/ && \
-		curl --silent -L "${download_url}" | \
-			tar xz -C /opt/idea --strip 1; \
-	fi
+#RUN if [[ "$ENV" != "minimal" ]] ; then \
+#	 # Installs the latest intellij idea ultimate
+#	 if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
+#		target=linux; \
+#  	 elif [ "$TARGETPLATFORM" = "linux/arm64/v8" ] || [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
+#		target=linuxARM64; \
+#	 else \
+#		target=linux; \
+#	 fi && \
+#	# By default install ultimate version
+#	 if [[ "$LICENCE" = "community" ]] ; then \
+#	 	product=IC; \
+#	 else \
+#	 	product=IU; \
+#	 fi && \
+#	 idea_releases_url="https://data.services.jetbrains.com/products/releases?code=${product}&latest=true&type=release" && \
+#        download_url=$(curl --silent $idea_releases_url | jq --raw-output ".I${product}[0].downloads.${target}.link") && \    
+#	 	echo "Idea URL: $download_url" && \
+#		filename=${download_url##*/} && \
+#        echo -e "\e[93m**** Download and install jetbrains ${filename%.tar.gz} ***\e[38;5;241m" && \
+#		mkdir /opt/idea/ && \
+#		curl --silent -L "${download_url}" | \
+#			tar xz -C /opt/idea --strip 1; \
+#	fi
 ENV PATH=:$PATH
 
 # Codeserver extensions to install
 COPY Artefacts/codeserver_extensions /tmp/
+
+RUN cd $(dirname $(readlink $(type code-server))) && \
+	rm -rf node_modules/argon2 \
+	&& npm install -g node-gyp \
+	&& npm install argon2 argon2-cli \
+	&& npx argon2-cli -d -e
+
 RUN if [[ "$ENV" != "minimal" ]] ; then \
 		echo -e "\e[93m**** Installs Code Server Extensions ****\e[38;5;241m" && \
 				CODESERVERDATA_DIR=/tmp/codeserver && \
@@ -126,9 +135,10 @@ COPY kernel.json /opt/conda/share/jupyter/kernels/java/kernel.json
 ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
 ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
 RUN JAVA_MAJOR_VERSION=$(java --version|head -n 1|cut -d ' ' -f 2|cut -d '.' -f 1) && \
-	DYNENV="\"env\": {\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION}\"}" && \
-	sed -i s/ENV/$DYNENV/ \
-	 	/opt/conda/share/jupyter/kernels/java/kernel.json
+	DYNENV="\"env\": {\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
+	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java/IJava*.jar| sed 's/\//\\\//g') && \
+	sed -i s/ENV/$DYNENV/ /opt/conda/share/jupyter/kernels/java/kernel.json && \
+	sed -i s/IKERNEL_JAR/$IKERNEL_JAR/ /opt/conda/share/jupyter/kernels/java/kernel.json
 
 # Update installed software versions. 
 ARG CACHEBUST=4
@@ -140,5 +150,28 @@ RUN touch ${HOME}/README.md && \
     for versionscript in $(ls -d /versions/*) ; do \
       eval "$versionscript" 2>/dev/null >> ${HOME}/README.md ; \
     done
+
+ARG CACHELAST=1
+COPY kernel.json /opt/conda/share/jupyter/kernels/java/kernel.json
+RUN JAVA_MAJOR_VERSION=$(java --version|head -n 1|cut -d ' ' -f 2|cut -d '.' -f 1) && \
+	DYNENV="\"env\": {\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
+	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java/IJava*.jar| sed 's/\//\\\//g') && \
+	sed -i s/ENV/$DYNENV/ /opt/conda/share/jupyter/kernels/java/kernel.json && \
+	sed -i s/IKERNEL_JAR/$IKERNEL_JAR/ /opt/conda/share/jupyter/kernels/java/kernel.json
+
+RUN quarto add martinomagnifico/quarto-verticator --no-prompt && \
+	quarto add quarto-ext/include-code-files --no-prompt && \
+	quarto install extension schochastics/academicons --no-prompt && \
+	quarto add mcanouil/quarto-iconify --no-prompt && \
+	quarto install extension schochastics/quarto-nutshell --no-prompt && \
+	quarto install extension jjallaire/code-visibility --no-prompt && \
+	quarto add shafayetShafee/line-highlight --no-prompt && \
+	quarto add mcanouil/quarto-lua-env --no-prompt && \
+	quarto add shafayetShafee/hide-comment --no-prompt && \
+	quarto install extension EmilHvitfeldt/quarto-roughnotation --no-prompt && \
+	quarto add shafayetShafee/code-fullscreen --no-prompt 
+
+RUN conda install --yes -c jetbrains kotlin-jupyter-kernel
+
 	
 USER $NB_UID

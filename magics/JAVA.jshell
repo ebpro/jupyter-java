@@ -11,6 +11,7 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.CompilationUnit;
 
+import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 
 import javax.tools.JavaFileObject;
 import io.github.spencerpark.jupyter.kernel.magic.registry.MagicsArgs;
@@ -19,6 +20,14 @@ import javax.tools.ToolProvider;
 import javax.tools.StandardJavaFileManager;
 import java.util.stream.Collectors;
 import io.github.classgraph.ClassGraph;
+
+import net.sourceforge.plantuml.SourceStringReader;
+import net.sourceforge.plantuml.core.DiagramDescription;
+import net.sourceforge.plantuml.FileFormatOption;
+import net.sourceforge.plantuml.FileFormat;
+import java.nio.charset.Charset;
+import javax.imageio.ImageIO;
+
 
 /**
 %%javasrcMethodByAnnotationName Test POST 
@@ -60,20 +69,38 @@ IJava.getKernelInstance().getMagics().registerCellMagic("javasrcMethodByName", (
      return out;
 });
 
+
+IJava.getKernelInstance().getMagics().registerCellMagic("javasrcInterfaceByName", (args, body) -> {
+    final String path=args.get(0);
+    final String filename=path+"/"+body.replace(".","/")+".java";
+    final String className=body.substring(body.lastIndexOf('.') + 1);
+    CompilationUnit cu = StaticJavaParser.parse(Files.readString(Path.of(filename)));
+    String out = cu.getInterfaceByName(className).get()
+                .toString();
+     //out = "```Java\n"+out+"\n```";
+    out = "```{.java fig-cap=\"TEST\",filename=\""+filename.substring(filename.lastIndexOf('/') + 1)+"\"}\n"+out+"\n```";
+     display(out,"text/markdown");
+     return out;
+});
+
 /**
 %%javasrcClassByName Test 
 /src/Test.java
 */
+
 IJava.getKernelInstance().getMagics().registerCellMagic("javasrcClassByName", (args, body) -> {
     String filename=body;
     String className=args.get(0);
     CompilationUnit cu = StaticJavaParser.parse(Files.readString(Path.of(filename)));
-            String out = cu.getClassByName(className).get()
-                .toString();
-     out = "```Java\n"+out+"\n```";
-     display(out,"text/markdown");
-     return out;
+    CompilationUnit lpp = LexicalPreservingPrinter.setup(cu);
+
+    String out = LexicalPreservingPrinter.print(lpp.getClassByName(className).get());
+                
+    out = "```Java\n"+out+"\n```";
+    display(out,"text/markdown");
+    return out;
 });
+
 
 /**
 %%compile fr/univtln/bruno/Test.java
@@ -125,7 +152,7 @@ IJava.getKernelInstance().getMagics().registerCellMagic("compile",(args,body)->{
         List<URI> classpath = new ClassGraph().getClasspathURIs();
         List<String> optionList=new ArrayList<String>();
         optionList.addAll(Arrays.asList("-cp",classpath.stream().map(URI::toString).collect(Collectors.joining(":"))));
-        optionList.addAll(Arrays.asList("--enable-preview","--release","17"));
+        optionList.addAll(Arrays.asList("--enable-preview","--release",System.getProperty("java.version"), "-proc:full"));
         compiler.getTask(null,fileManager,null,optionList,null,compilationUnits1).call();
         //display("Compilation of "+file);
         
@@ -144,3 +171,273 @@ IJava.getKernelInstance().getMagics().registerCellMagic("compile",(args,body)->{
     } catch(IOException e){ throw new RuntimeException(e);}
     return "ok";
 });
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.sql.*;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+
+
+    private static class Field {
+        private final String name;
+
+        private final String size;
+        private final String type;
+        private final boolean nullable;
+        private final boolean autoincrement;
+        private Role role = Role.COLUMN;
+
+
+        private Field(String name, String size, String type, boolean nullable, boolean autoincrement) {
+            this.name = name;
+            this.size = size;
+            this.type = type;
+            this.nullable = nullable;
+            this.autoincrement = autoincrement;
+        }
+
+        public static Field of(String name, String size, String type, boolean nullable, boolean autoincrement) {
+            return new Field(name, size, type, nullable, autoincrement);
+        }
+
+        public String toString() {
+            return String.format("%s %s(%s): %s(%s)", nullable ? "" : "*", role.name, name, type, size);
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        public String getSize() {
+            return this.size;
+        }
+
+        public String getType() {
+            return this.type;
+        }
+
+        public boolean isNullable() {
+            return this.nullable;
+        }
+
+        public boolean isAutoincrement() {
+            return this.autoincrement;
+        }
+
+        public Role getRole() {
+            return this.role;
+        }
+
+        public void setRole(Role role) {
+            this.role = role;
+        }
+
+        public enum Role {
+            COLUMN("column"),
+            PK("primary_key"),
+            FK("foreign_key");
+            private final String name;
+
+            Role(String name) {
+                this.name = name;
+            }
+
+            public String getName() {
+                return this.name;
+            }
+        }
+    }
+
+    private static class Table {
+
+        private static int nextnum = 1;
+
+        private String name;
+        private int id = nextnum++;
+        private Map<String, Field> fields = new TreeMap<>();
+
+        public Map<String, Field> getFields() {return fields;}
+        
+        public Table(String tableName) {
+            this.name = tableName;
+        }
+
+        public String toString() {
+            return "table("+name+") {\n"+ 
+                    this.getFields().values().stream().filter(f -> f.getRole() == Field.Role.PK).map(Object::toString).map(s -> "\t" + s).collect(Collectors.joining("\n"))+
+                    "\n--\n"+
+                    this.getFields().values().stream().filter(f -> f.getRole() != Field.Role.PK).map(Object::toString).map(s -> "\t" + s).collect(Collectors.joining("\n"))+
+                    "\n}\n";
+        }
+    }
+
+
+IJava.getKernelInstance().getMagics().registerCellMagic("rdbmsSchema", (args, body) -> {
+    
+        //sets the results mimetype
+        if (args.size()>5 || args.size()<2) throw new Exception("Usage: jdbcURL user password [SCHEMA] [SVG|PNG]");
+        String fileFormat;
+        String schema;
+        if (args.size()==3) schema="PUBLIC";
+          else schema=args.get(3);
+        if (args.size()<=4) fileFormat="SVG";
+          else fileFormat=args.get(4);
+
+    
+        Connection connection = DriverManager.getConnection(args.get(0),args.get(1),args.get(2));
+    
+         DatabaseMetaData databaseMetaData = connection.getMetaData();
+
+        StringWriter out = new StringWriter();
+    
+        out.write("""
+                @startuml
+                 
+                 left to right direction
+                 skinparam roundcorner 5                    
+                 skinparam shadowing true
+                 skinparam handwritten false
+                 skinparam class {
+                     BackgroundColor #EEEEEE
+                     ArrowColor #2688d4
+                     BorderColor #2688d4
+                 }
+                 
+                 !define primary_key(x) <b><color:#b8861b><&key></color> x</b>
+                 !define foreign_key(x) <color:#aaaaaa><&key></color> x
+                 !define column(x) <color:#efefef><&media-record></color> x
+                 !define table(x) entity x << (T, white) >>
+                 
+                """);
+        String[] bodylines=body.split("\n");                  
+        for(String bodyline:bodylines)
+         try (ResultSet resultSet = databaseMetaData.getTables(null, schema, bodyline, new String[]{"TABLE"})) {
+            while (resultSet.next()) {
+                String tableName = resultSet.getString("TABLE_NAME");
+                String remarks = resultSet.getString("REMARKS");
+
+                Table table = new Table(tableName);
+
+                //First process each column
+                try (ResultSet columns = databaseMetaData.getColumns(null, schema, tableName, null)) {
+                    while (columns.next()) {
+                        String columnName = columns.getString("COLUMN_NAME");
+                        table.getFields().put(columnName, Field.of(columnName,
+                                columns.getString("COLUMN_SIZE"),
+                                columns.getString("TYPE_NAME"),
+                                columns.getString("IS_NULLABLE").equals("YES"),
+                                columns.getString("IS_AUTOINCREMENT").equals("YES")));
+                    }
+                }
+
+                //Then finetune each PK
+                try (ResultSet primaryKeys = databaseMetaData.getPrimaryKeys(null, schema, tableName)) {
+                    while (primaryKeys.next()) {
+                        String primaryKeyColumnName = primaryKeys.getString("COLUMN_NAME");
+                        String primaryKeyName = primaryKeys.getString("PK_NAME");
+                        table.getFields().get(primaryKeyColumnName).setRole(Field.Role.PK);
+                    }
+                }
+
+                StringBuilder foreignKeysText = new StringBuilder();
+                //And Adds a link for each FK
+                try (ResultSet foreignKeys = databaseMetaData.getImportedKeys(null, schema, tableName)) {
+                    while (foreignKeys.next()) {
+                        String pkTableName = foreignKeys.getString("PKTABLE_NAME");
+                        String fkTableName = foreignKeys.getString("FKTABLE_NAME");
+                        String pkColumnName = foreignKeys.getString("PKCOLUMN_NAME");
+                        String fkColumnName = foreignKeys.getString("FKCOLUMN_NAME");
+                        table.getFields().get(fkColumnName).setRole(Field.Role.FK);
+
+                        foreignKeysText.append(String.format("%s::%s --> %s::%s\n", fkTableName, fkColumnName, pkTableName, pkColumnName));
+
+                    }
+                }              
+                out.write(table.toString());
+                out.write(foreignKeysText.toString());
+            }
+            
+        }
+        out.write("@enduml");
+                  
+                                    
+        SourceStringReader reader = new SourceStringReader(out.toString());
+        final ByteArrayOutputStream os = new ByteArrayOutputStream();
+
+        DiagramDescription desc = reader.outputImage(os, new FileFormatOption(FileFormat.valueOf(fileFormat)));
+        os.close();
+        Object output;
+        if (fileFormat.equals("SVG"))
+            output = new String(os.toByteArray(), Charset.forName("UTF-8"));
+        else
+            output= ImageIO.read(new ByteArrayInputStream(os.toByteArray()));
+
+        display(output,fileFormat.equals("SVG")?"image/svg+xml":"image/png");
+        return output;
+        });//%jars /usr/local/bin/plantuml.jar
+
+import io.github.spencerpark.ijava.IJava;
+import net.sourceforge.plantuml.*;
+import net.sourceforge.plantuml.core.DiagramDescription;
+import java.nio.charset.Charset;
+import javax.imageio.ImageIO;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import io.github.spencerpark.ijava.IJava;
+import io.github.spencerpark.ijava.JavaKernel;
+import io.github.spencerpark.jupyter.kernel.magic.registry.UndefinedMagicException;
+
+
+/**
+Render plantUML from cell
+*/
+IJava.getKernelInstance().getMagics().registerCellMagic("plantUML", (args, body) -> {
+        //sets the results mimetype
+        if (args.size()>1) throw new Exception("Max one argument : SVG or PNG");
+        String fileFormat;
+        if (args.size()==0) fileFormat="SVG"; 
+          else fileFormat=args.get(0);    
+        
+        SourceStringReader reader = new SourceStringReader(body);
+        final ByteArrayOutputStream os = new ByteArrayOutputStream();
+
+        DiagramDescription desc = reader.outputImage(os, new FileFormatOption(FileFormat.valueOf(fileFormat)));
+        os.close();
+        Object out;
+        if (fileFormat.equals("SVG"))
+            out = new String(os.toByteArray(), Charset.forName("UTF-8"));
+        else 
+            out= ImageIO.read(new ByteArrayInputStream(os.toByteArray()));
+        
+        display(out,fileFormat.equals("SVG")?"image/svg+xml":"image/png");
+        return out;
+        });
+
+/**
+Render plantUML from file
+*/
+IJava.getKernelInstance().getMagics().registerCellMagic("plantUMLFile", (args, body) -> {    
+    //sets the results mimetype
+    if (args.size()>1) throw new Exception("Max one argument : SVG or PNG");
+    String fileFormat;
+    if (args.size()==0) fileFormat="SVG"; 
+    else fileFormat=args.get(0);
+    
+    List<String> l = new ArrayList<>();
+
+    List<Object> outList = new ArrayList<>();
+    body.lines().forEach(filename-> {
+     Object out;        
+     try {        
+        out=cellMagic("plantUML",args,Files.readString(Paths.get(filename)));
+        //display(out,fileFormat.equals("SVG")?"image/svg+xml":"image/png");
+        outList.add(out);
+     } catch (java.io.IOException e) {}
+    });    
+    
+        return outList;
+                
+        });
+    
