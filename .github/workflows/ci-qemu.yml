@@ -3,7 +3,7 @@ name: Multi Arch Docker QEMU CI
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 02 * * *'    
+    - cron: '0 06 * * *'    
   push:
       
 jobs:
