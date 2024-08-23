@@ -12,16 +12,14 @@ USER root
 
 # Install minimal dependencies 
 COPY Artefacts/apt_packages* /tmp/
-# RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-RUN --mount=type=bind,source=/opt/cache/apt,target=/var/cache/apt \
- 	apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update && \
 	apt-get install -qq --yes --no-install-recommends \
 		$(cat /tmp/apt_packages) && \
 	rm -rf /var/lib/apt/lists/*	
 
 # Install a Java Kernel for Jupyter
-# RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
-RUN --mount=type=bind,source=/opt/cache/buildkit/pip,target=/var/cache/buildkit/pip \
+RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
 	echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
         #curl -sL https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip -o /tmp/ijava-kernel.zip && \
         curl -sL https://bruno.univ-tln.fr/ijava-latest.zip -o /tmp/ijava-kernel.zip && \
@@ -33,15 +31,14 @@ RUN --mount=type=bind,source=/opt/cache/buildkit/pip,target=/var/cache/buildkit/
     fix-permissions /home/${NB_USER}
 
 # Adds IJava Jupyter Kernel Personnal Magics
-ADD magics  /magics
+COPY magics  /magics
 
 ARG VERSION
 
 # Install java dev tools with sdkman  
 #     latest java jdk LTS (ENV=stable) or the latest jdk (ENV="")
 #     stable mvn 3
-# RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
-RUN --mount=type=bind,source=/opt/cache/sdkmanarchives,target=/opt/sdkmanarchives/ \
+RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
     echo -e "\e[93m**** Installs SDKMan, JDK and Maven ****\e[38;5;241m" && \
     curl -s "https://get.sdkman.io" | bash && \
     mkdir -p /home/jovyan/.sdkman/archives/ && \
