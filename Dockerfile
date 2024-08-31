@@ -18,18 +18,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 		$(cat /tmp/apt_packages) && \
 	rm -rf /var/lib/apt/lists/*	
 
-# Install a Java Kernel for Jupyter
-RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
-	echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
-        #curl -sL https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip -o /tmp/ijava-kernel.zip && \
-        curl -sL https://bruno.univ-tln.fr/ijava-latest.zip -o /tmp/ijava-kernel.zip && \
-        unzip /tmp/ijava-kernel.zip -d /tmp/ijava-kernel && \
-        cd /tmp/ijava-kernel && \
-        python3 install.py --sys-prefix && \
-        cd && rm -rf /tmp/ijava-kernel /tmp/ijava-kernel.zip && \
-    fix-permissions ${CONDA_DIR} && \
-    fix-permissions /home/${NB_USER}
-
 # Adds IJava Jupyter Kernel Personnal Magics
 COPY magics  /magics
 
@@ -49,6 +37,7 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
 		sdk install java ;\
 	else \
 	 	sdk install java $(sdk list java|grep tem|head -n 1|cut -d '|' -f 6) ;\
+		sdk install java ;\
 	fi && \
 	sdk install maven && \
 	# Set maven repository to persistent user space
@@ -72,8 +61,8 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
 	# sdk flush broadcast && \
 	fix-permissions /home/${NB_USER}/.sdkman
 
-# Adds Java, Maven and intellij Idea to the user path
-ENV PATH=/home/jovyan/.sdkman/candidates/maven/current/bin:/home/jovyan/.sdkman/candidates/java/current/bin:/opt/idea/bin/:$PATH
+# Adds Java, Maven to the user path
+ENV PATH=/home/jovyan/.sdkman/candidates/maven/current/bin:/home/jovyan/.sdkman/candidates/java/current/bin:$PATH
 
 # link ~/.m2 to ~/work/.m2
 ENV NEEDED_WORK_DIRS="$NEEDED_WORK_DIRS .m2"
@@ -86,6 +75,20 @@ RUN echo -e "\e[93m**** Install lombok and java dependencies ***\e[38;5;241m" &&
         mkdir -p "${HOME}/lib/" && \
         curl -sL https://projectlombok.org/downloads/lombok.jar -o "${HOME}/lib/lombok.jar"
 COPY dependencies/* "$HOME/lib/"
+
+RUN quarto add martinomagnifico/quarto-verticator --no-prompt && \
+	quarto add quarto-ext/include-code-files --no-prompt && \
+	quarto install extension schochastics/academicons --no-prompt && \
+	quarto add mcanouil/quarto-iconify --no-prompt && \
+	quarto install extension schochastics/quarto-nutshell --no-prompt && \
+	quarto install extension jjallaire/code-visibility --no-prompt && \
+	quarto add shafayetShafee/line-highlight --no-prompt && \
+	quarto add mcanouil/quarto-lua-env --no-prompt && \
+	quarto add shafayetShafee/hide-comment --no-prompt && \
+	quarto install extension EmilHvitfeldt/quarto-roughnotation --no-prompt && \
+	quarto add shafayetShafee/code-fullscreen --no-prompt 
+
+RUN conda install --yes -c jetbrains kotlin-jupyter-kernel
 
 ARG ENV
 
@@ -136,15 +139,44 @@ RUN if [[ "$ENV" != "minimal" ]] ; then \
 				rm -rf "$CODESERVERDATA_DIR" ; \
 	fi
 
+# Install a Java Kernel for Jupyter
+ADD https://bruno.univ-tln.fr/ijava-latest.zip /tmp/ijava-kernel.zip
+RUN --mount=type=cache,target=/opt/sdkmanArchives/ --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
+	echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
+        #curl -sL https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip -o /tmp/ijava-kernel.zip && \
+        unzip /tmp/ijava-kernel.zip -d /tmp/ijava-kernel && \
+        cd /tmp/ijava-kernel && \
+		conda create -y --name java-lts && \
+		/bin/bash -c "source activate java-lts" && \
+		python3 install.py --sys-prefix && \
+        cd && rm -rf /tmp/ijava-kernel /tmp/ijava-kernel.zip && \
+		cp --archive /opt/conda/share/jupyter/kernels/java /opt/conda/share/jupyter/kernels/java-lts && \
+		mv /opt/conda/share/jupyter/kernels/java /opt/conda/share/jupyter/kernels/java-latest && \
+    fix-permissions ${CONDA_DIR} && \
+    fix-permissions /home/${NB_USER}
+
 # Enable Java Annotations and Preview and personnal magics. Sets classpath.
-COPY kernel.json /opt/conda/share/jupyter/kernels/java/kernel.json
+COPY kernel.json /opt/conda/share/jupyter/kernels/java-latest/kernel.json
 ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
 ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
-RUN JAVA_MAJOR_VERSION=$(java --version|head -n 1|cut -d ' ' -f 2|cut -d '.' -f 1) && \
-	DYNENV="\"env\": {\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
-	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java/IJava*.jar| sed 's/\//\\\//g') && \
-	sed -i s/ENV/"$DYNENV"/ /opt/conda/share/jupyter/kernels/java/kernel.json && \
-	sed -i s/IKERNEL_JAR/"$IKERNEL_JAR"/ /opt/conda/share/jupyter/kernels/java/kernel.json
+RUN JAVA_VERSION=$(sdk list java|tr -s ' '|grep -e '-tem' |grep "installed"|cut -d '|' -f 3|sort|tail -n 1|sed 's/ //g') && \
+    JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION"|sed 's/ //g'|sed 's/^\([0-9]*\).*/\1/') && \
+	DYNENV="\"env\": {\"JAVA_HOME\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\",\"PATH\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\/bin:\$PATH\",\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
+	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java-latest/IJava*.jar| sed 's/\//\\\//g') && \
+	sed -i s/ENV/"$DYNENV"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json && \
+	sed -i s/Java/"Java Latest"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json && \
+	sed -i s/IKERNEL_JAR/"$IKERNEL_JAR"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json
+
+COPY kernel.json /opt/conda/share/jupyter/kernels/java-lts/kernel.json
+ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
+ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
+RUN JAVA_VERSION=$(sdk list java|tr -s ' '|grep -e '-tem' |grep "installed"|cut -d '|' -f 3|sort|head -n 1|sed 's/ //g') && \
+    JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION"|sed 's/ //g'|sed 's/^\([0-9]*\).*/\1/') && \
+	DYNENV="\"env\": {\"JAVA_HOME\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\",\"PATH\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\/bin:\$PATH\",\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
+	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java-lts/IJava*.jar| sed 's/\//\\\//g') && \
+	sed -i s/ENV/"$DYNENV"/ /opt/conda/share/jupyter/kernels/java-lts/kernel.json && \
+	sed -i s/Java/"Java LTS"/ //opt/conda/share/jupyter/kernels/java-lts/kernel.json && \
+	sed -i s/IKERNEL_JAR/"$IKERNEL_JAR"/ /opt/conda/share/jupyter/kernels/java-lts/kernel.json
 
 # Update installed software versions. 
 COPY versions/ /versions/
@@ -155,25 +187,14 @@ RUN touch ${HOME}/README.md && \
       eval "$versionscript" 2>/dev/null >> ${HOME}/README.md ; \
     done
 
-COPY kernel.json /opt/conda/share/jupyter/kernels/java/kernel.json
-RUN JAVA_MAJOR_VERSION=$(java --version|head -n 1|cut -d ' ' -f 2|cut -d '.' -f 1) && \
-	DYNENV="\"env\": {\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
-	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java/IJava*.jar| sed 's/\//\\\//g') && \
-	sed -i "s/ENV/$DYNENV/" /opt/conda/share/jupyter/kernels/java/kernel.json && \
-	sed -i "s/IKERNEL_JAR/$IKERNEL_JAR/" /opt/conda/share/jupyter/kernels/java/kernel.json
+# COPY kernel.json /opt/conda/share/jupyter/kernels/java/kernel.json
+#RUN JAVA_MAJOR_VERSION=$(java --version|head -n 1|cut -d ' ' -f 2|cut -d '.' -f 1) && \
+#	DYNENV="\"env\": {\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
+#	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java/IJava*.jar| sed 's/\//\\\//g') && \
+#	sed -i "s/ENV/$DYNENV/" /opt/conda/share/jupyter/kernels/java/kernel.json && \
+#	sed -i "s/IKERNEL_JAR/$IKERNEL_JAR/" /opt/conda/share/jupyter/kernels/java/kernel.json
 
-RUN quarto add martinomagnifico/quarto-verticator --no-prompt && \
-	quarto add quarto-ext/include-code-files --no-prompt && \
-	quarto install extension schochastics/academicons --no-prompt && \
-	quarto add mcanouil/quarto-iconify --no-prompt && \
-	quarto install extension schochastics/quarto-nutshell --no-prompt && \
-	quarto install extension jjallaire/code-visibility --no-prompt && \
-	quarto add shafayetShafee/line-highlight --no-prompt && \
-	quarto add mcanouil/quarto-lua-env --no-prompt && \
-	quarto add shafayetShafee/hide-comment --no-prompt && \
-	quarto install extension EmilHvitfeldt/quarto-roughnotation --no-prompt && \
-	quarto add shafayetShafee/code-fullscreen --no-prompt 
-
-RUN conda install --yes -c jetbrains kotlin-jupyter-kernel
 
 USER $NB_UID
+
+

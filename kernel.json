@@ -1,10 +1,10 @@
 {
     "argv": [
-	  "java",
-		"-ea",
-    		"--enable-preview",
-		"-jar", "IKERNEL_JAR",
-		"{connection_file}"],
+	    "java",
+		    "-ea",
+        "--enable-preview",
+		    "-jar", "IKERNEL_JAR",
+		    "{connection_file}"],
     "display_name": "Java",
     "interrupt_mode": "message",
     "language": "java",
