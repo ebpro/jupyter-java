@@ -156,27 +156,30 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/ --mount=type=cache,target=/va
     fix-permissions /home/${NB_USER}
 
 # Enable Java Annotations and Preview and personnal magics. Sets classpath.
+COPY patch_java_kernel.sh /tmp/patch_java_kernel.sh
 COPY kernel.json /opt/conda/share/jupyter/kernels/java-latest/kernel.json
 ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
 ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
-RUN JAVA_VERSION=$(sdk list java|tr -s ' '|grep -e '-tem' |grep "installed"|cut -d '|' -f 3|sort|tail -n 1|sed 's/ //g') && \
-    JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION"|sed 's/ //g'|sed 's/^\([0-9]*\).*/\1/') && \
-	DYNENV="\"env\": {\"JAVA_HOME\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\",\"PATH\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\/bin:\$PATH\",\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
-	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java-latest/IJava*.jar| sed 's/\//\\\//g') && \
-	sed -i s/ENV/"$DYNENV"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json && \
-	sed -i s/Java/"Java Latest"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json && \
-	sed -i s/IKERNEL_JAR/"$IKERNEL_JAR"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json
+RUN	JAVA_VERSION=$(sdk list java|tr -s ' '|grep -e '-tem' |grep "installed"|cut -d '|' -f 3|sort|tail -n 1|sed 's/ //g') && \
+	/tmp/patch_java_kernel.sh ${JAVA_VERSION} java-latest	
+#    JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION"|sed 's/ //g'|sed 's/^\([0-9]*\).*/\1/') && \
+#	DYNENV="\"env\": {\"JAVA_HOME\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\",\"PATH\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\/bin:\$PATH\",\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
+#	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java-latest/IJava*.jar| sed 's/\//\\\//g') && \
+#	sed -i s/ENV/"$DYNENV"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json && \
+#	sed -i s/Java/"Java Latest"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json && \
+#	sed -i s/IKERNEL_JAR/"$IKERNEL_JAR"/ /opt/conda/share/jupyter/kernels/java-latest/kernel.json
 
 COPY kernel.json /opt/conda/share/jupyter/kernels/java-lts/kernel.json
 ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
 ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
 RUN JAVA_VERSION=$(sdk list java|tr -s ' '|grep -e '-tem' |grep "installed"|cut -d '|' -f 3|sort|head -n 1|sed 's/ //g') && \
-    JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION"|sed 's/ //g'|sed 's/^\([0-9]*\).*/\1/') && \
-	DYNENV="\"env\": {\"JAVA_HOME\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\",\"PATH\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\/bin:\$PATH\",\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
-	IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java-lts/IJava*.jar| sed 's/\//\\\//g') && \
-	sed -i s/ENV/"$DYNENV"/ /opt/conda/share/jupyter/kernels/java-lts/kernel.json && \
-	sed -i s/Java/"Java LTS"/ //opt/conda/share/jupyter/kernels/java-lts/kernel.json && \
-	sed -i s/IKERNEL_JAR/"$IKERNEL_JAR"/ /opt/conda/share/jupyter/kernels/java-lts/kernel.json
+	/tmp/patch_java_kernel.sh ${JAVA_VERSION} java-lts	
+ #   JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION"|sed 's/ //g'|sed 's/^\([0-9]*\).*/\1/') && \
+	#DYNENV="\"env\": {\"JAVA_HOME\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\",\"PATH\":\"\/home\/jovyan\/.sdkman\/candidates\/java\/$JAVA_VERSION-tem\/bin:\$PATH\",\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler\/com.sun.tools.javac.processing=ALL-UNNAMED\"}" && \
+	#IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/java-lts/IJava*.jar| sed 's/\//\\\//g') && \
+	#sed -i s/ENV/"$DYNENV"/ /opt/conda/share/jupyter/kernels/java-lts/kernel.json && \
+	#sed -i s/Java/"Java LTS"/ //opt/conda/share/jupyter/kernels/java-lts/kernel.json && \
+	#sed -i s/IKERNEL_JAR/"$IKERNEL_JAR"/ /opt/conda/share/jupyter/kernels/java-lts/kernel.json
 
 # Update installed software versions. 
 COPY versions/ /versions/
