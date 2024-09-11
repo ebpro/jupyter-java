@@ -13,6 +13,6 @@ jobs:
     with:
         runs-on: arc-runner-set-compute-lsis
         env-list: >
-          [ "stable" ]
+          [ "" ]
     secrets: inherit
       
