@@ -3,13 +3,14 @@ JAVA_VERSION=$1 # 22.0.0
 KERNEL_NAME=$2  # java-latest
 JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION"|sed 's/ //g'|sed 's/^\([0-9]*\).*/\1/')
 IKERNEL_JAR=$(ls /opt/conda/share/jupyter/kernels/${KERNEL_NAME}/IJava*.jar| sed 's/\//\\\//g')
+# "IJAVA_COMPILER_OPTS":"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED"
 DYNENV=`cat <<EOF
 "env": 
         {
         "JAVA_HOME":"/home/jovyan/.sdkman/candidates/java/${JAVA_VERSION}",
         "PATH":"/home/jovyan/.sdkman/candidates/java/${JAVA_VERSION}/bin:$PATH",
         "JAVA_OPTS":"--enable-preview",
-        "IJAVA_COMPILER_OPTS":"-deprecation -Xlint:preview -XprintProcessorInfo -XprintRounds --enable-preview --release ${JAVA_MAJOR_VERSION} --add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED"
+        "IJAVA_COMPILER_OPTS":"-deprecation -XprintProcessorInfo -XprintRounds --add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED"
         }
 EOF
 `

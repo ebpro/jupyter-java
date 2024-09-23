@@ -13,10 +13,11 @@ USER root
 # Install minimal dependencies 
 COPY Artefacts/apt_packages* /tmp/
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
 	apt-get install -qq --yes --no-install-recommends \
 		$(cat /tmp/apt_packages) && \
-	rm -rf /var/lib/apt/lists/*	
+	rm -rf /var/lib/apt/lists/*
 
 # Adds IJava Jupyter Kernel Personnal Magics
 COPY magics  /magics
@@ -29,10 +30,9 @@ ARG VERSION
 RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
     echo -e "\e[93m**** Installs SDKMan, JDK and Maven ****\e[38;5;241m" && \
     curl -s "https://get.sdkman.io" | bash && \
-    mkdir -p /home/jovyan/.sdkman/archives/ && \
-    ln -s /opt/sdkmanArchives/ /home/jovyan/.sdkman/archives/ && \
     echo "sdkman_auto_answer=true" > ${HOME}/.sdkman/etc/config && \
 	source "$HOME/.sdkman/bin/sdkman-init.sh" && \
+    find /opt/sdkmanArchives -name \*.h -exec cp {} ${SDKMAN_DIR}/tmp/ \; && \
 	java_lts=$(sdk list java|grep default| grep -o "[^ ]*$"|tr -d ':') && \
 	# Installs all LTSs, early access JDK and latest maven
 	if [[ "$ENV" = "stable" ]] ; then \
@@ -53,56 +53,15 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
 		sdk install java "$GRAAL_VERSION" && \ 
 		sdk default java "$java_lts";\
 	fi && \
-	sdk install maven
-
+	sdk install maven && \
 	# Set maven repository to persistent user space
-RUN  --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
 	source "$HOME/.sdkman/bin/sdkman-init.sh" && \
-	echo \
-    "<settings xmlns='http://maven.apache.org/SETTINGS/1.2.0' \
-      		   xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' \
-    		   xsi:schemaLocation='http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd'> \
-        <localRepository>\${user.home}/work/.m2/repository</localRepository> \
-		<interactiveMode>false</interactiveMode> \
-		<mirrors> \    
- 			<mirror> \
-  				<id>compute-lsis-2</id> \
-  				<mirrorOf>central</mirrorOf> \
-  				<url>https://nexus.ebruno.fr/repository/maven-central</url> \
- 			</mirror> \
-		</mirrors> \
-		<profiles> \
-		  <profile> \
-  			<id>myprofile</id> \
- 			<activation> \
-  				<activeByDefault>true</activeByDefault> \
- 			</activation> \
-			<properties> \
-				<style.color>never</style.color>\
-			</properties> \
-  			<repositories> \
-    			<repository> \
-      				<id>MavenCentral</id> \
-       				<name>Central but with another name to bypass proxy unavailable</name> \
-       				<url>https://repo1.maven.org/maven2</url> \ 
-    			</repository> \
-  			</repositories> \ 
-		 </profile> \
-		</profiles> \
-		</settings>" \
-    	> ${HOME}/.sdkman/candidates/maven/current/conf/settings.xml && \
 	# add sdkman config to .zshrc
  	echo '#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!' >> "$HOME"/.zshenv && \
     echo 'export SDKMAN_DIR="$HOME/.sdkman"' >> "$HOME"/.zshenv && \
     echo '[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"' >> "$HOME"/.zshenv && \
-	# sdk flush && \
-	groupadd sdk && \
-	chgrp -R sdk ${SDKMAN_DIR} &&\
-	chmod 770 -R ${SDKMAN_DIR} && \	
-	adduser ${NB_USER} sdk && \
-	# sdk flush && \
-	# sdk flush broadcast && \
-	fix-permissions /home/${NB_USER}/.sdkman
+    chown -R ${NB_UID}:${NB_GID} ${SDKMAN_DIR} && \
+    mv ${SDKMAN_DIR}/tmp/*.zip /opt/sdkmanArchives/
 
 # Adds Java, Maven to the user path
 ENV PATH=/home/jovyan/.sdkman/candidates/maven/current/bin:/home/jovyan/.sdkman/candidates/java/current/bin:$PATH
@@ -116,8 +75,9 @@ SHELL ["/bin/zsh","-l","-c"]
 # Adds usefull java librairies to classpath
 RUN echo -e "\e[93m**** Install lombok and java dependencies ***\e[38;5;241m" && \
         mkdir -p "${HOME}/lib/" && \
-        curl -sL https://projectlombok.org/downloads/lombok.jar -o "${HOME}/lib/lombok.jar"
-COPY dependencies/* "$HOME/lib/"
+        curl -sL https://projectlombok.org/downloads/lombok.jar -o "${HOME}/lib/lombok.jar" && \
+        chown -R ${NB_UID}:${NB_GID} "${HOME}/lib" 
+COPY --chown=$NB_UID:$NB_GID dependencies/* "$HOME/lib/"
 
 RUN conda install --yes -c jetbrains kotlin-jupyter-kernel
 
@@ -167,7 +127,8 @@ RUN if [[ "$ENV" != "minimal" ]] ; then \
                 	--user-data-dir "$CODESERVERDATA_DIR"\
                 	--extensions-dir "$CODESERVEREXT_DIR" \
                     $(cat /tmp/codeserver_extensions|sed 's/./--install-extension &/') && \
-				rm -rf "$CODESERVERDATA_DIR" ; \
+				rm -rf "$CODESERVERDATA_DIR" && \
+                chown -R ${NB_UID}:${NB_GID} "${CODESERVEREXT_DIR}" ; \
 	fi
 
 # Install a Java Kernel for Jupyter
@@ -218,9 +179,10 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/ --mount=type=cache,target=/va
     done && \
 	/tmp/patch_java_kernel.sh ${java_lts} java-lts && \
 	/tmp/patch_java_kernel.sh ${java_latest} java-latest && \
-	/tmp/patch_java_kernel.sh ${java_ea} java-ea && \ 
-    fix-permissions ${CONDA_DIR} && \
-    fix-permissions /home/${NB_USER}
+	/tmp/patch_java_kernel.sh ${java_ea} java-ea && \
+    mkdir -p /home/jovyan/.local/share/jupyter/{kernels,runtime} && \
+    chown -R ${NB_UID}:${NB_GID} /home/jovyan/.local/share/jupyter && \
+    chown -R ${NB_UID}:${NB_GID} /opt/conda/share/jupyter/kernels
 
 # Update installed software versions. 
 COPY versions/ /versions/
