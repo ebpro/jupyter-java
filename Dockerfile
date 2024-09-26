@@ -32,7 +32,8 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
     curl -s "https://get.sdkman.io" | bash && \
     echo "sdkman_auto_answer=true" > ${HOME}/.sdkman/etc/config && \
 	source "$HOME/.sdkman/bin/sdkman-init.sh" && \
-    find /opt/sdkmanArchives -name \*.h -exec cp {} ${SDKMAN_DIR}/tmp/ \; && \
+    if [[ -z "CI" ]] ; then echo "USING SDKMAN CACHE";else echo "NOT USING SDKMAN CACHE" ; \
+            find /opt/sdkmanArchives -name \*.h -exec cp {} ${SDKMAN_DIR}/tmp/ \; ; fi && \
 	java_lts=$(sdk list java|grep default| grep -o "[^ ]*$"|tr -d ':') && \
 	# Installs all LTSs, early access JDK and latest maven
 	if [[ "$ENV" = "stable" ]] ; then \
