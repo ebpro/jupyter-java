@@ -3,14 +3,14 @@
     xsi:schemaLocation='http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd'>
     <localRepository>${user.home}/work/.m2/repository</localRepository>
     <interactiveMode>false</interactiveMode>
-    <mirrors>
+    <!--mirrors>
         <mirror>
             <id>compute-lsis-2</id>
             <mirrorOf>central</mirrorOf>
             <url>https://nexus.ebruno.fr/repository/maven-central/</url>
         </mirror>
-    </mirrors>
-    <profiles>
+    </mirrors-->
+    <!--profiles>
         <profile>
             <id>nexus</id>
             <properties>
@@ -41,8 +41,8 @@
                 </pluginRepository>
             </pluginRepositories>
         </profile>
-    </profiles>
-    <activeProfiles>
+    </profiles-->
+    <!--activeProfiles>
         <activeProfile>nexus</activeProfile>
-    </activeProfiles>
+        </activeProfiles-->
 </settings> 
