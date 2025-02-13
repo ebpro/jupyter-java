@@ -11,8 +11,8 @@ LABEL org.opencontainers.image.authors="Emmanuel BRUNO <emmanuel.bruno@univ-tln.
 USER root
 
 # Install minimal dependencies 
-COPY Artefacts/apt_packages* /tmp/
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+RUN --mount=type=bind,source=Artefacts/,target=/tmp/Artefacts/ \ 
+	--mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
 	apt-get install -qq --yes --no-install-recommends \
@@ -24,6 +24,8 @@ COPY magics  /magics
 
 ARG VERSION
 
+ENV JAVA_LTS="^17\|^21\|^25"
+
 # Install java dev tools with sdkman  
 #     latest java jdk LTS, the latest jdk, and early access
 #     stable mvn 3
@@ -34,25 +36,31 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/,sharing=locked \
 	source "$HOME/.sdkman/bin/sdkman-init.sh" && \
     if [[ -z "CI" ]] ; then echo "USING SDKMAN CACHE";else echo "NOT USING SDKMAN CACHE" ; \
             find /opt/sdkmanArchives -name \*.h -exec cp {} ${SDKMAN_DIR}/tmp/ \; ; fi && \
-	java_lts=$(sdk list java|grep default| grep -o "[^ ]*$"|tr -d ':') && \
+	JAVA_LTS=$(sdk list java|grep default| grep -o "[^ ]*$"|tr -d ':') && \
 	# Installs all LTSs, early access JDK and latest maven
 	if [[ "$ENV" = "stable" ]] ; then \
 		sdk install java ;\
 	else \
-		# install Java 8
+		# Install latest java
+		JAVA_LATEST=$(sdk list java|grep -- "-tem"|cut -d '|' -f 6|head -n 1|tr -d ' ') && \
+		sdk install java "$JAVA_LATEST" && \
+		# Install Java 8
 	    sdk install java $(sdk list java|grep "8\..*fx-zulu"|head -n 1|cut -d '|' -f 6)  && \ 
-		# install Java Early Access
-		sdk install java $(sdk list java|grep "\.ea\..*-open"|head -1|cut -d '|' -f 6) && \ 
-		# Install LTSs and Latest
+		# Install Java Early Access
+		JAVA_EA=$(sdk list java|grep "\.ea\..*-open"|head -1|cut -d '|' -f 6|tr -d ' ') && \
+		sdk install java "$JAVA_EA" && \ 
+		# Install some LTSs
 		for v in $(sdk list java|\
 				tr -s ' '|grep ' tem '|cut -d '|' -f 6|tr -d ' '| \
 				sed 's/\(^[^\.-]*\)\(.*\)$/\1,\1\2/'|\
-				sort -u -t, -k 1,1|cut -f 2 -d,); do \
+				sort -u -t, -k 1,1|cut -f 2 -d,|grep ${JAVA_LTS}); do \
 			sdk install java "$v"; \
 		done ;\
+		# Install GraalVM
 		GRAAL_VERSION=$(sdk list java|tr -d ' '|grep '\-graal$'|grep -v "\.ea\."|cut -d '|' -f 6|head -n 1) && \
 		sdk install java "$GRAAL_VERSION" && \ 
-		sdk default java "$java_lts";\
+		# set default java to LTS
+		sdk default java "$JAVA_LTS";\
 	fi && \
 	sdk install maven && \
 	# Set maven repository to persistent user space
@@ -112,15 +120,8 @@ ARG ENV
 # ENV PATH=:${PATH}
 
 # Codeserver extensions to install
-COPY Artefacts/codeserver_extensions /tmp/
-
-#RUN cd $(dirname $(readlink $(type code-server))) && \
-#	rm -rf node_modules/argon2 \
-#	&& npm install -g node-gyp \
-#	&& npm install argon2 argon2-cli \
-#	&& npx argon2-cli -d -e
-
-RUN if [[ "$ENV" != "minimal" ]] ; then \
+RUN --mount=type=bind,source=Artefacts/codeserver_extensions,target=/tmp/codeserver_extensions \ 
+	if [[ "$ENV" != "minimal" ]] ; then \
 		echo -e "\e[93m**** Installs Code Server Extensions ****\e[38;5;241m" && \
 				CODESERVERDATA_DIR=/tmp/codeserver && \
 				mkdir -p "$CODESERVERDATA_DIR" && \
@@ -141,16 +142,12 @@ ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
 ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
 RUN --mount=type=cache,target=/opt/sdkmanArchives/ --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
 	echo -e "\e[93m**** Install Java Kernel for Jupyter ****\e[38;5;241m" && \
-    #curl -sL https://github.com/SpencerPark/IJava/releases/download/v1.3.0/ijava-1.3.0.zip -o /tmp/ijava-kernel.zip && \
-	echo ok5 && \
     unzip /tmp/ijava-kernel.zip -d /tmp/ijava-kernel && \
     cd /tmp/ijava-kernel && \
-	# conda create -y --name java-lts && \
-	# /bin/bash -c "source activate java-lts" && \
 	python3 install.py --sys-prefix && \
     cd && rm -rf /tmp/ijava-kernel /tmp/ijava-kernel.zip && \
 	cp --archive /opt/conda/share/jupyter/kernels/java /opt/conda/share/jupyter/kernels/java-lts && \
-	cp --archive /opt/conda/share/jupyter/kernels/java /opt/conda/share/jupyter/kernels/java-ea && \
+	cp --archive /opt/conda/share/jupyter/kernels/java /opt/conda/share/jupyter/kernels/java-ea   && \
 	for v in $(sdk list java|tr -s ' '|grep ' installed '|\
 		cut -d '|' -f 6|tr -d ' '|\
 		sed 's/\(^[^\.-]*\)\(.*\)$/\1,\1\2/'|sort -u -t, -k 1,1|cut -f 1 -d,); do \
@@ -158,9 +155,10 @@ RUN --mount=type=cache,target=/opt/sdkmanArchives/ --mount=type=cache,target=/va
 				cp --archive /opt/conda/share/jupyter/kernels/java /opt/conda/share/jupyter/kernels/java-"$v"; \
 			fi ; \
 	done && \
-	mv /opt/conda/share/jupyter/kernels/java /opt/conda/share/jupyter/kernels/java-latest && \
+	rm /opt/conda/share/jupyter/kernels/java/kernel.json && \
+	mv /opt/conda/share/jupyter/kernels/java/* /opt/conda/share/jupyter/kernels/java-latest/ && \
 	java_lts=$(sdk list java|grep default| grep -o "[^ ]*$"|tr -d ':') && \
-	java_latest=$(sdk list java|tr -s ' '|grep -v '.ea.' |\
+	java_latest=$(sdk list java|tr -s ' '|grep -v '.ea.\|-graal' |\
 		grep "installed"|cut -d '|' -f 6|head -n 1|sed 's/ //g') && \
 	java_ea=$(sdk list java|tr -s ' '|grep -e '.ea.' |\
 		grep "installed"|cut -d '|' -f 6|sort|tail -n 1|sed 's/ //g') && \

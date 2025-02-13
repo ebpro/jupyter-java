@@ -3,10 +3,10 @@
 	    "java",
 		    "-ea",
             "--enable-preview",
-		    "-jar", "IKERNEL_JAR",
+		    "-jar", "___IKERNEL_JAR",
 		    "{connection_file}"],
-    "display_name": "Java",
+    "display_name": "___DISPLAY_NAME",
     "interrupt_mode": "message",
     "language": "java",
-    ENV
+    ___ENV
 }
