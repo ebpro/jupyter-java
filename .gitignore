@@ -1,4 +1,6 @@
+.vscode
 work
 opt
+*.old
 
 .idea

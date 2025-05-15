@@ -1,0 +1,3 @@
+[submodule "IJava"]
+	path = IJava
+	url = git@github.com:ebpro/IJava.git

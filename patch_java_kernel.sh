@@ -34,7 +34,7 @@ generate_env_config() {
     local java_major_version=$2
     local preview=$3
 
-    echo "env": {"JAVA_HOME":"/home/jovyan/.sdkman/candidates/java/${java_version}","PATH":"/home/jovyan/.sdkman/candidates/java/${java_version}/bin:${PATH}","JAVA_OPTS":"--enable-preview","IJAVA_COMPILER_OPTS":"-deprecation -g -Xlint:all -XprintProcessorInfo -XprintRounds ${preview} --add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED --add-modules=ALL-SYSTEM"}
+    echo "\"env\": {\"JAVA_HOME\":\"/home/jovyan/.sdkman/candidates/java/${java_version}\",\"PATH\":\"/home/jovyan/.sdkman/candidates/java/${java_version}/bin:${PATH}\",\"JAVA_OPTS\":\"--enable-preview\",\"IJAVA_COMPILER_OPTS\":\"-deprecation -g -Xlint:all -XprintProcessorInfo -XprintRounds ${preview} --add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED --add-modules=ALL-SYSTEM\"}"
 }
 
 # Main execution

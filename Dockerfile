@@ -1,4 +1,41 @@
+ARG IJAVA_ROOTPROJET_NAME=IJava
+
+# Build stage for IJava kernel
+FROM eclipse-temurin:21-jdk AS ijava-builder
+
+# Set build arguments
+ARG IJAVA_ROOTPROJET_NAME
+
+# Set working directory
+WORKDIR /${IJAVA_ROOTPROJET_NAME}
+
+# Copy gradle wrapper files first to leverage Docker cache
+COPY IJava/gradle/ /${IJAVA_ROOTPROJET_NAME}/gradle/
+COPY IJava/gradlew /${IJAVA_ROOTPROJET_NAME}/
+
+# Copy project configuration files
+COPY IJava/build.gradle IJava/settings.gradle IJava/gradle.properties /${IJAVA_ROOTPROJET_NAME}/
+
+# Download dependencies first (cached layer)
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew downloadDependencies
+
+# Copy source code and license
+COPY IJava/src/ /${IJAVA_ROOTPROJET_NAME}/src/
+COPY IJava/LICENSE /${IJAVA_ROOTPROJET_NAME}/LICENSE
+
+# Build the project with caching
+RUN --mount=type=cache,target=/root/.gradle \
+    --mount=type=cache,target=.gradle \
+    set -eux && \
+    ./gradlew clean packDist \
+        --info \
+        --stacktrace 
+
 FROM docker.io/brunoe/jupyter-base:feature-minimal
+
+# Set build arguments
+ARG IJAVA_ROOTPROJET_NAME
 
 LABEL org.opencontainers.image.authors="Emmanuel BRUNO <emmanuel.bruno@univ-tln.fr>" \
       org.opencontainers.image.description="A devcontainer image for Java development" \
@@ -18,9 +55,6 @@ RUN --mount=type=bind,source=Artefacts/apt_packages,target=/tmp/Artefacts/apt_pa
 	apt-get install -qq --yes --no-install-recommends \
 		$(cat /tmp/Artefacts/apt_packages) && \
 	rm -rf /var/lib/apt/lists/*
-
-# Adds IJava Jupyter Kernel Personnal Magics
-COPY magics  /magics
 
 # Copy version scripts
 COPY --chown=${NB_USER}:${NB_USER} versions/ ${HOME}/versions/
@@ -68,6 +102,10 @@ RUN set -e && \
         # Install Maven
         echo "Installing Maven..." && \
         sdk install maven && \
+        sdk install gradle && \
+        sdk install quarkus && \
+        sdk install jbang && \
+        sdk install kotlin; \
     } && \
     # Configure environment
     echo "Configuring environment..." && \
@@ -85,37 +123,37 @@ ENV NEEDED_WORK_DIRS=$NEEDED_WORK_DIRS:.m2
 
 COPY settings.xml /home/jovyan/.sdkman/candidates/maven/current/conf/settings.xml
 
-# Adds usefull java librairies to classpath
-RUN mkdir -p "${HOME}/lib/" && \
-        curl -sL https://projectlombok.org/downloads/lombok.jar -o "${HOME}/lib/lombok.jar"
-
 RUN conda install --yes -c jetbrains kotlin-jupyter-kernel
 
 # Install a Java Kernel for Jupyter
-ADD --chown=${NB_USER}:${NB_USER} https://bruno.univ-tln.fr/ijava-latest.zip /tmp/ijava-kernel.zip
+# COPY --chown=${NB_USER}:${NB_USER} --from=IJava-builder ${IJAVA_ROOTPROJET_NAME}/build/distributions/IJava-latest.zip /tmp/ijava-kernel.zip
+
 # Enable Java Annotations and Preview and personnal magics. Sets classpath.
-COPY --chown=${NB_USER}:${NB_USER} patch_java_kernel.sh /tmp/patch_java_kernel.sh
+#COPY --chown=${NB_USER}:${NB_USER} patch_java_kernel.sh /tmp/patch_java_kernel.sh
 COPY --chown=${NB_USER}:${NB_USER} kernel.json /home/jovyan/miniforge3/share/jupyter/kernels/java-latest/kernel.json
 ENV IJAVA_CLASSPATH="${HOME}/lib/*.jar:/usr/local/bin/*.jar"
-ENV IJAVA_STARTUP_SCRIPTS_PATH="/magics/*"
+ENV IJAVA_STARTUP_SCRIPTS_PATH="${HOME}/magics/*"
 
 # Configure Java Kernels 
 RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
+   --mount=type=bind,source=patch_java_kernel.sh,target=/tmp/patch_java_kernel.sh \ 
+   --mount=type=bind,from=IJava-builder,source=${IJAVA_ROOTPROJET_NAME}/build/distributions/IJava-latest.zip,target=/tmp/ijava-kernel.zip \ 
     unzip /tmp/ijava-kernel.zip -d /tmp/ijava-kernel && \
     cd /tmp/ijava-kernel && \
-    export KERNELS_DIR=${HOME}/miniforge3/share/jupyter/kernels $s && \
-	python3 install.py --sys-prefix && \
-    cd && rm -rf /tmp/ijava-kernel /tmp/ijava-kernel.zip && \
-	cp --archive ${KERNELS_DIR}/java ${KERNELS_DIR}/java-lts && \
-	cp --archive ${KERNELS_DIR}/java ${KERNELS_DIR}/java-ea   && \
-	for v in $(sdk list java|tr -s ' '|grep ' installed '|\
+    export KERNELS_DIR=$(python3 install.py --sys-prefix|sed 's/.*"\([^"]*\)\/java".*/\1/') && \
+    echo "Kernel directory: ${KERNELS_DIR}" && \
+    cd && rm -rf /tmp/ijava-kernel && \
+    rm -v ${KERNELS_DIR}/java/kernel.json && \ 
+    mkdir -p ${KERNELS_DIR}/java-lts ${KERNELS_DIR}/java-ea && \
+	cp --archive ${KERNELS_DIR}/java/* ${KERNELS_DIR}/java-lts/ && \
+	cp --archive ${KERNELS_DIR}/java/* ${KERNELS_DIR}/java-ea/ && \ 
+    for v in $(sdk list java|tr -s ' '|grep ' installed '|\
 		cut -d '|' -f 6|tr -d ' '|\
 		sed 's/\(^[^\.-]*\)\(.*\)$/\1,\1\2/'|sort -u -t, -k 1,1|cut -f 1 -d,); do \
 			if [ "$v" -ge "17" ]; then \
 				cp --archive ${KERNELS_DIR}/java ${KERNELS_DIR}/java-"$v"; \
 			fi ; \
-	done && \
-	rm ${KERNELS_DIR}/java/kernel.json && \
+	done && \    
 	mv ${KERNELS_DIR}/java/* ${KERNELS_DIR}/java-latest/ && \
 	java_lts=$(sdk list java|grep default| grep -o "[^ ]*$"|tr -d ':') && \
 	java_latest=$(sdk list java|tr -s ' '|grep -v '.ea.\|-graal' |\
@@ -124,7 +162,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
 		grep "installed"|cut -d '|' -f 6|sort|tail -n 1|sed 's/ //g') && \
 	cp ${KERNELS_DIR}/java-latest/kernel.json ${KERNELS_DIR}/java-lts/kernel.json && \
 	cp ${KERNELS_DIR}/java-latest/kernel.json ${KERNELS_DIR}/java-ea/kernel.json && \
-	for v in $(sdk list java|\
+    for v in $(sdk list java|\
                                 tr -s ' '|grep ' tem '|cut -d '|' -f 6|tr -d ' '|\
                                 sed 's/\(^[^\.-]*\)\(.*\)$/\1,\1\2/'|\
                                 sort -u -t, -k 1,1); do \
@@ -140,3 +178,9 @@ RUN --mount=type=cache,target=/var/cache/buildkit/pip,sharing=locked \
 	/tmp/patch_java_kernel.sh ${java_latest} java-latest && \
 	/tmp/patch_java_kernel.sh ${java_ea} java-ea && \
     mkdir -p /home/jovyan/.local/share/jupyter/{kernels,runtime}
+
+# Adds usefull java librairies to classpath
+COPY --chown=${NB_USER}:${NB_USER} dependencies/* "$HOME/lib/"
+
+# Adds IJava Jupyter Kernel Personnal Magics
+COPY magics  ${HOME}/magics
